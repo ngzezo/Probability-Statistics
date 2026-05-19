@@ -2,17 +2,16 @@
  * ================================================================
  *  Constrained Lattice Path Counter — main.c
  *
- *  Counts monotonic lattice paths from S=(0,0) to T=(5,5) that
- *  visit EXACTLY TWO of the special points {A, B, C} and never
- *  pass through the forbidden point F=(2,3).
+ *  Counts monotonic lattice paths from S to T that visit EXACTLY
+ *  TWO of the special points {A, B, C} and never pass through the
+ *  forbidden point F. All coordinates are read from user input.
  *
- *  Grid  : 6x6 lattice, coordinates 0..5 in both dimensions
- *  S     = (0,0)   start
- *  T     = (5,5)   finish
- *  A     = (1,2)   special point
- *  B     = (3,2)   special point
- *  C     = (4,4)   special point
- *  F     = (2,3)   forbidden — path must NOT pass through here
+ *  S     = start point
+ *  T     = finish point  (must satisfy T.x >= S.x and T.y >= S.y)
+ *  A,B,C = special points (the algorithm assumes A precedes B precedes
+ *          C in monotone order, i.e. A.x <= B.x <= C.x and the pair
+ *          orderings hold — see case comments below)
+ *  F     = forbidden point (path must NOT pass through here)
  *
  *  Method: inclusion-exclusion over three mutually exclusive cases.
  *  For each pair, the path is decomposed into ordered segments; each
@@ -29,19 +28,8 @@
 
 #include <stdio.h>
 
-/* ── Problem constants (hard-coded per assignment) ── */
-#define SX 0   /* Start  x */
-#define SY 0   /* Start  y */
-#define TX 5   /* Finish x */
-#define TY 5   /* Finish y */
-#define AX 1   /* Special point A x */
-#define AY 2   /* Special point A y */
-#define BX 3   /* Special point B x */
-#define BY 2   /* Special point B y */
-#define CX 4   /* Special point C x */
-#define CY 4   /* Special point C y */
-#define FX 2   /* Forbidden point F x */
-#define FY 3   /* Forbidden point F y */
+/* Coordinates are declared as local variables in main() and
+ * read from the user at runtime — see the input section there. */
 
 /* ----------------------------------------------------------------
  * C(n, k) — binomial coefficient "n choose k".
@@ -116,9 +104,9 @@ long long paths_avoid_F(int x1, int y1, int x2, int y2, int fx, int fy)
 /* ----------------------------------------------------------------
  * paths_through_waypoints(wp, n, fx, fy):
  *
- * Given n ordered intermediate waypoints, count paths from S to T
- * that visit every waypoint in the given order, with each segment
- * avoiding the forbidden point (fx,fy).
+ * Given n ordered intermediate waypoints, count paths from (sx,sy)
+ * to (tx,ty) that visit every waypoint in the given order, with each
+ * segment avoiding the forbidden point (fx,fy).
  *
  * Decomposition:  S -> wp[0] -> wp[1] -> ... -> wp[n-1] -> T
  *
@@ -126,16 +114,17 @@ long long paths_avoid_F(int x1, int y1, int x2, int y2, int fx, int fy)
  * If any segment is unreachable, paths_avoid_F() returns 0 and the
  * whole product becomes 0, correctly representing impossibility.
  * ---------------------------------------------------------------- */
-long long paths_through_waypoints(int wp[][2], int n, int fx, int fy)
+long long paths_through_waypoints(int wp[][2], int n, int fx, int fy,
+                                   int sx, int sy, int tx, int ty)
 {
     long long product = 1;
-    int x1 = SX, y1 = SY;
+    int x1 = sx, y1 = sy;
     for (int i = 0; i < n; i++) {
         product *= paths_avoid_F(x1, y1, wp[i][0], wp[i][1], fx, fy);
         x1 = wp[i][0];
         y1 = wp[i][1];
     }
-    product *= paths_avoid_F(x1, y1, TX, TY, fx, fy);   /* last -> T */
+    product *= paths_avoid_F(x1, y1, tx, ty, fx, fy);   /* last -> T */
     return product;
 }
 
@@ -144,6 +133,25 @@ long long paths_through_waypoints(int wp[][2], int n, int fx, int fy)
  * ================================================================ */
 int main(void)
 {
+    /* ── Read all problem parameters from the user ── */
+    int SX, SY, TX, TY;
+    int AX, AY, BX, BY, CX, CY;
+    int FX, FY;
+
+    printf("Enter start point      S (x y): ");
+    scanf("%d %d", &SX, &SY);
+    printf("Enter finish point     T (x y): ");
+    scanf("%d %d", &TX, &TY);
+    printf("Enter special point    A (x y): ");
+    scanf("%d %d", &AX, &AY);
+    printf("Enter special point    B (x y): ");
+    scanf("%d %d", &BX, &BY);
+    printf("Enter special point    C (x y): ");
+    scanf("%d %d", &CX, &CY);
+    printf("Enter forbidden point  F (x y): ");
+    scanf("%d %d", &FX, &FY);
+    printf("\n");
+
     /* ── Pre-compute all segment values used in the three cases ── */
 
     /* Unrestricted path counts for every segment that appears */
@@ -177,11 +185,11 @@ int main(void)
 
     /*
      * Paths through all three waypoints A, B, C in order S->A->B->C->T.
-     * The ordering is unique: A.x=1 < B.x=3 < C.x=4 fixes A before B
-     * before C on every monotone path, so no other arrangement is valid.
+     * The ordering is determined by the user-supplied coordinates; the
+     * algorithm assumes A precedes B precedes C in monotone order.
      */
     int wp_ABC[3][2] = {{AX,AY},{BX,BY},{CX,CY}};
-    long long all_ABC = paths_through_waypoints(wp_ABC, 3, FX, FY);
+    long long all_ABC = paths_through_waypoints(wp_ABC, 3, FX, FY, SX, SY, TX, TY);
 
     /* ════════════════════════════════════════════════════════════ */
     printf("======================================================\n");
@@ -289,7 +297,7 @@ int main(void)
      *
      * exactly(A,B) = paths(A and B)   -  paths(A and B and C)
      *
-     * Monotone ordering: A.x=1 < B.x=3, so A always comes before B.
+     * Monotone ordering: A.x < B.x is assumed, so A comes before B.
      * Only one valid ordering of waypoints exists: S->A->B->T.
      * ════════════════════════════════════════════════════════════ */
     printf("--- Case 1: Through A and B (not C) ---\n\n");
@@ -323,9 +331,9 @@ int main(void)
      *
      * exactly(A,C) = paths(A and C)   -  paths(A and B and C)
      *
-     * Monotone ordering: A.x=1 < C.x=4 AND A.y=2 < C.y=4,
-     * so A always comes before C. Only ordering: S->A->C->T.
-     * Note: some S->A->C->T paths also pass through B=(3,2),
+     * Monotone ordering: A.x < C.x AND A.y < C.y is assumed,
+     * so A comes before C. Only ordering: S->A->C->T.
+     * Note: some S->A->C->T paths also pass through B,
      * which is why we subtract all_ABC to enforce "not B".
      * ════════════════════════════════════════════════════════════ */
     printf("--- Case 2: Through A and C (not B) ---\n\n");
@@ -358,9 +366,9 @@ int main(void)
      *
      * exactly(B,C) = paths(B and C)   -  paths(A and B and C)
      *
-     * Monotone ordering: B.x=3 < C.x=4 AND B.y=2 < C.y=4,
-     * so B always comes before C. Only ordering: S->B->C->T.
-     * Note: some S->B->C->T paths also pass through A=(1,2),
+     * Monotone ordering: B.x < C.x AND B.y < C.y is assumed,
+     * so B comes before C. Only ordering: S->B->C->T.
+     * Note: some S->B->C->T paths also pass through A,
      * which is why we subtract all_ABC to enforce "not A".
      * ════════════════════════════════════════════════════════════ */
     printf("--- Case 3: Through B and C (not A) ---\n\n");
